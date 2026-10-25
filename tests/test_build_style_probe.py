@@ -1,4 +1,4 @@
-import os
+import json
 import re
 import subprocess
 import sys
@@ -67,10 +67,36 @@ class BuildStyleProbeTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             reference = Path(output_dir) / 'ref_corpus.txt'
             draft = Path(output_dir) / 'draft_sents.txt'
+            metadata_path = Path(output_dir) / 'probe_meta.json'
             self.assertTrue(reference.is_file())
             self.assertTrue(draft.is_file())
+            self.assertTrue(metadata_path.is_file())
             self.assertGreaterEqual(len(reference.read_text(encoding='utf-8').splitlines()), 20)
             self.assertGreaterEqual(len(draft.read_text(encoding='utf-8').splitlines()), 10)
+            raw_metadata = metadata_path.read_text(encoding='utf-8')
+            metadata = json.loads(raw_metadata)
+            self.assertTrue(raw_metadata.startswith('{\n  "register":'))
+            self.assertIn('"register_label": "해라체"', raw_metadata)
+            self.assertEqual(
+                set(metadata),
+                {
+                    'register', 'register_label', 'corpus_mode', 'allow_empty_corpus',
+                    'ref_sentence_count', 'draft_sentence_count', 'top_pct',
+                    'target_rewrite_count',
+                },
+            )
+            self.assertEqual(metadata['register'], 'plain')
+            self.assertEqual(metadata['register_label'], '해라체')
+            self.assertEqual(metadata['corpus_mode'], 'corpus')
+            self.assertIs(metadata['allow_empty_corpus'], False)
+            self.assertIs(type(metadata['ref_sentence_count']), int)
+            self.assertIs(type(metadata['draft_sentence_count']), int)
+            self.assertEqual(metadata['ref_sentence_count'], len(reference.read_text(encoding='utf-8').splitlines()))
+            self.assertEqual(metadata['draft_sentence_count'], len(draft.read_text(encoding='utf-8').splitlines()))
+            self.assertIs(type(metadata['top_pct']), float)
+            self.assertEqual(metadata['top_pct'], 0.05)
+            self.assertIs(type(metadata['target_rewrite_count']), int)
+            self.assertEqual(metadata['target_rewrite_count'], 1)
 
     def test_allow_empty_corpus_uses_builtin_reference_without_corpus_argument(self):
         with tempfile.TemporaryDirectory() as output_dir:
@@ -83,8 +109,19 @@ class BuildStyleProbeTests(unittest.TestCase):
             self.assertIn('코퍼스 모드: 내장 기본 기준선 사용', result.stdout)
             reference = Path(output_dir) / 'ref_corpus.txt'
             draft = Path(output_dir) / 'draft_sents.txt'
+            metadata = json.loads((Path(output_dir) / 'probe_meta.json').read_text(encoding='utf-8'))
             self.assertGreaterEqual(len(reference.read_text(encoding='utf-8').splitlines()), 20)
             self.assertTrue(draft.is_file())
+            self.assertEqual(metadata['corpus_mode'], 'empty')
+            self.assertIs(metadata['allow_empty_corpus'], True)
+            self.assertEqual(metadata['ref_sentence_count'], 25)
+            self.assertIs(type(metadata['ref_sentence_count']), int)
+            self.assertIs(type(metadata['draft_sentence_count']), int)
+            self.assertIs(type(metadata['top_pct']), float)
+            self.assertIs(type(metadata['target_rewrite_count']), int)
+            self.assertEqual(metadata['ref_sentence_count'], len(reference.read_text(encoding='utf-8').splitlines()))
+            self.assertEqual(metadata['draft_sentence_count'], len(draft.read_text(encoding='utf-8').splitlines()))
+            self.assertEqual(metadata['target_rewrite_count'], 1)
 
     def test_missing_and_empty_drafts_exit_without_waiting(self):
         with tempfile.TemporaryDirectory() as temporary_dir:

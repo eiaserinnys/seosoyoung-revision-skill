@@ -5,6 +5,7 @@
 import argparse
 import html
 import io
+import json
 import os
 import random
 import re
@@ -314,6 +315,7 @@ def main(argv=None):
     reference = collect_reference(
         corpus_dir, exclude, args.ref_count, args.seed, register, draft_path=draft_path,
     )
+    extracted_reference_count = len(reference)
     use_fallback = args.allow_empty_corpus or (args.corpus_dir is None and corpus_dir is None)
     used_fallback = False
 
@@ -332,6 +334,15 @@ def main(argv=None):
     os.makedirs(output_dir, exist_ok=True)
     reference_path = os.path.join(output_dir, 'ref_corpus.txt')
     draft_sentences_path = os.path.join(output_dir, 'draft_sents.txt')
+    metadata_path = os.path.join(output_dir, 'probe_meta.json')
+    register_label = '합쇼체/해요체' if register == 'polite' else '해라체'
+    target_rewrite_count = max(1, round(len(draft) * args.top_pct))
+    # The mode distinguishes user samples from built-in fallback sentences.
+    corpus_mode = (
+        'empty'
+        if used_fallback and extracted_reference_count == 0
+        else 'corpus'
+    )
 
     with io.open(reference_path, 'w', encoding='utf-8', newline='\n') as output:
         output.write('\n'.join('- ' + sentence for sentence in reference) + '\n')
@@ -340,15 +351,27 @@ def main(argv=None):
             '%3d. %s' % (index + 1, sentence)
             for index, sentence in enumerate(draft)
         ) + '\n')
+    metadata = {
+        'register': register,
+        'register_label': register_label,
+        'corpus_mode': corpus_mode,
+        'allow_empty_corpus': args.allow_empty_corpus,
+        'ref_sentence_count': len(reference),
+        'draft_sentence_count': len(draft),
+        'top_pct': args.top_pct,
+        'target_rewrite_count': target_rewrite_count,
+    }
+    with io.open(metadata_path, 'w', encoding='utf-8', newline='\n') as output:
+        json.dump(metadata, output, ensure_ascii=False, indent=2)
+        output.write('\n')
 
-    top_count = max(1, round(len(draft) * args.top_pct))
     percent_label = int(round(args.top_pct * 100))
-    print('문체 판정  : %s' % ('합쇼체/해요체' if register == 'polite' else '해라체'))
+    print('문체 판정  : %s' % register_label)
     if used_fallback:
         print('코퍼스 모드: 내장 기본 기준선 사용')
     print('기준 코퍼스: %d문장 -> %s' % (len(reference), reference_path))
     print('초안 문장  : %d문장 -> %s' % (len(draft), draft_sentences_path))
-    print('재작성 대상: 상위 %d문장 (%d%%)' % (top_count, percent_label))
+    print('재작성 대상: 상위 %d문장 (%d%%)' % (target_rewrite_count, percent_label))
     return 0
 
 
