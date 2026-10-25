@@ -23,6 +23,9 @@ POLITE_EXCEPT = ('아니다.', '아니다!', '아니다?')
 SENT_END = ('다.', '까.', '가.', '요.', '까?', '가?', '다!', '요!', '죠.', '네.')
 NUM_MARKER = re.compile(r'^\d+\.\s*')
 BULLET_MARKER = re.compile(r'^[-*]\s+')
+DRAFT_BULLET_MARKER = re.compile(r'^[-*+]\s+')
+DRAFT_SKIP_PREFIX = ('|', '#', '!', '>', '<', '```')
+REFERENCE_DEFINITION = re.compile(r'^\[[^\]]+\]:(?:\s|$)')
 
 HTML_STRIP_BLOCKS = re.compile(
     r'<(?:script|style|svg|head|noscript|code|pre)\b[^>]*>[\s\S]*?</(?:script|style|svg|head|noscript|code|pre)>'
@@ -149,6 +152,17 @@ def strip_non_prose_blocks(text):
     return HTML_CODE_BLOCKS.sub('\n', ''.join(lines))
 
 
+def strip_inline_markdown(text):
+    """표시 문법만 걷어 내고 초안의 문장 텍스트를 보존한다."""
+    text = re.sub(r'!\[([^\]]*)\]\([^)]*\)', r'\1', text)
+    text = re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', text)
+    text = re.sub(r'\[([^\]]+)\]\[[^\]]*\]', r'\1', text)
+    text = re.sub(r'\[\^[^\]]+\]', '', text)
+    text = re.sub(r'`([^`]+)`', r'\1', text)
+    text = re.sub(r'(\*\*|__|~~)(.*?)\1', r'\2', text)
+    return re.sub(r'(?<!\w)([*_])([^*_]+)\1(?!\w)', r'\2', text)
+
+
 def register_of(sent):
     """문장의 문체를 plain 또는 polite로 구분한다."""
     if sent.endswith(POLITE_EXCEPT):
@@ -191,6 +205,34 @@ def iter_sentences(path, min_len, max_len, prose_only=True):
             if prose_only and not is_prose(sent):
                 continue
             if min_len <= len(sent) <= max_len:
+                yield sent
+
+
+def iter_draft_sentences(path, min_len=4, max_len=400):
+    """초안에서 완결문과 길이가 충분한 어구를 추출한다."""
+    with io.open(path, encoding='utf-8') as source:
+        raw = source.read()
+    ext = os.path.splitext(path)[1].lower()
+    if ext in ('.html', '.htm'):
+        text = html_to_lines(strip_non_prose_blocks(raw))
+    else:
+        text = strip_non_prose_blocks(strip_frontmatter(raw))
+    for line in text.split('\n'):
+        line = line.strip()
+        if not line or line.startswith(DRAFT_SKIP_PREFIX):
+            continue
+        if REFERENCE_DEFINITION.match(line):
+            continue
+        line = NUM_MARKER.sub('', line)
+        line = DRAFT_BULLET_MARKER.sub('', line)
+        line = strip_inline_markdown(line)
+        for sent in SPLIT.split(line):
+            sent = sent.strip()
+            if not sent or len(sent) > max_len:
+                continue
+            complete = sent.endswith(SENT_END) or re.search(r'[.!?]["\'\)\]]*$', sent)
+            minimum = min_len if complete else 12
+            if len(sent) >= minimum:
                 yield sent
 
 
@@ -330,7 +372,7 @@ def main(argv=None):
         sys.stderr.write('초안 파일은 .md, .txt, .html, .htm 형식이어야 한다.\n')
         return 2
     try:
-        draft = list(iter_sentences(draft_path, 12, 400, prose_only=False))
+        draft = list(iter_draft_sentences(draft_path))
     except (OSError, UnicodeError) as error:
         sys.stderr.write('초안을 읽을 수 없다: %s\n' % error)
         return 2
@@ -345,13 +387,12 @@ def main(argv=None):
     reference = collect_reference(
         corpus_dir, exclude, args.ref_count, args.seed, register, draft_path=draft_path,
     )
-    extracted_reference_count = len(reference)
+    user_ref_sentence_count = len(reference)
     use_fallback = args.allow_empty_corpus or (args.corpus_dir is None and corpus_dir is None)
-    used_fallback = False
 
     if len(reference) < MIN_REFERENCE_SENTENCES and use_fallback:
         reference = fallback_sentences(register, reference)
-        used_fallback = True
+    builtin_ref_sentence_count = len(reference) - user_ref_sentence_count
     if len(reference) < MIN_REFERENCE_SENTENCES:
         sys.stderr.write(
             '기준 코퍼스가 %d문장뿐이다(문체 %s). '
@@ -368,11 +409,12 @@ def main(argv=None):
     register_label = '합쇼체/해요체' if register == 'polite' else '해라체'
     target_rewrite_count = max(1, round(len(draft) * args.top_pct))
     # The mode distinguishes user samples from built-in fallback sentences.
-    corpus_mode = (
-        'empty'
-        if used_fallback and extracted_reference_count == 0
-        else 'corpus'
-    )
+    if user_ref_sentence_count == 0:
+        corpus_mode = 'empty'
+    elif builtin_ref_sentence_count > 0:
+        corpus_mode = 'mixed'
+    else:
+        corpus_mode = 'corpus'
 
     with io.open(reference_path, 'w', encoding='utf-8', newline='\n') as output:
         output.write('\n'.join('- ' + sentence for sentence in reference) + '\n')
@@ -387,6 +429,8 @@ def main(argv=None):
         'corpus_mode': corpus_mode,
         'allow_empty_corpus': args.allow_empty_corpus,
         'ref_sentence_count': len(reference),
+        'user_ref_sentence_count': user_ref_sentence_count,
+        'builtin_ref_sentence_count': builtin_ref_sentence_count,
         'draft_sentence_count': len(draft),
         'top_pct': args.top_pct,
         'target_rewrite_count': target_rewrite_count,
@@ -397,8 +441,14 @@ def main(argv=None):
 
     percent_label = int(round(args.top_pct * 100))
     print('문체 판정  : %s' % register_label)
-    if used_fallback:
+    if corpus_mode == 'empty':
         print('코퍼스 모드: 내장 기본 기준선 사용')
+    elif corpus_mode == 'mixed':
+        print(
+            '코퍼스 모드: 사용자 코퍼스 + 내장 기본 기준선 혼합 '
+            '(사용자 %d문장, 내장 %d문장)'
+            % (user_ref_sentence_count, builtin_ref_sentence_count)
+        )
     print('기준 코퍼스: %d문장 -> %s' % (len(reference), reference_path))
     print('초안 문장  : %d문장 -> %s' % (len(draft), draft_sentences_path))
     print('재작성 대상: 상위 %d문장 (%d%%)' % (target_rewrite_count, percent_label))

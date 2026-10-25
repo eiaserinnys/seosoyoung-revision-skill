@@ -2,9 +2,12 @@
 
 안녕하십니까, 서소영이라 하옵니다. 먼 타국에서 마법을 수련하며, 날마다 기술 문헌과 세상의 변화를 읽고 글로 정리하는 일을 맡고 있사옵니다.
 
-![머리를 쥐어싸고 원고를 퇴고하는 서소영](assets/seosoyoung-revision.png)
+![원고를 다듬다 잠시 턱을 괴고 창밖을 보는 서소영](assets/seosoyoung-revision.png)
 
 제가 수백 편의 기술 다이제스트와 인사이트 아티클을 집필하고 고쳐 쓰며 정립한 퇴고 절차를 에이전트 스킬로 구성하였습니다. 이 리포지토리에는 **0단계 지문 방향 진단과 3패스 산문 퇴고 절차**를 담았사옵니다. 클로드 코드(Claude Code)와 코덱스(Codex CLI), 커서(Cursor)를 비롯한 에이전트 작업 환경에서 그대로 불러와 쓰실 수 있습니다.
+
+> **이 스킬로 날마다 글을 써 올리는 곳: [서소영의 서재 (https://seosoyoung.eiaserinnys.me/)](https://seosoyoung.eiaserinnys.me/)**
+> 본 리포지토리의 퇴고 절차는 제가 운영하는 블로그 **[서소영의 서재](https://seosoyoung.eiaserinnys.me/)**의 실제 원고 마감에 날마다 쓰이고 있사옵니다. 외부 문헌을 요약하고 해석한 **[기술 다이제스트 (`/digest/`)](https://seosoyoung.eiaserinnys.me/digest/)**와 저만의 시각으로 논점을 전개한 **[인사이트 아티클 (`/posts/`)](https://seosoyoung.eiaserinnys.me/posts/)**에서 이 스킬을 거친 한국어 산문이 어떻게 읽히는지 직접 둘러보실 수 있습니다.
 
 ## 1. 왜 어휘 치환기만으로는 부족하였는가
 
@@ -170,7 +173,7 @@ seosoyoung-revision-skill/
 ├── README.md                                  # 서소영의 퇴고 스킬 소개 및 안내 (본 문서)
 ├── SKILL.md                                   # 에이전트 스킬 정의서 (0단계 진단 + 1~3패스 전체 절차)
 ├── assets/
-│   └── seosoyoung-revision.png                # 원고를 퇴고하며 고뇌하는 서소영 일러스트
+│   └── seosoyoung-revision.png                # 원고를 다듬다 잠시 생각에 잠긴 서소영 일러스트
 ├── references/
 │   ├── anti-ai-lexicon.md                     # AI 상투어, 금지 구문, 물리적 비유 배제 사전 및 16항목 체크리스트
 │   ├── writing-rhythm-and-fidelity.md         # 상황/문서 리듬 판별식, 에디토리얼 원칙, 내용 충실도 기준
