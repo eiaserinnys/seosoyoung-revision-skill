@@ -280,7 +280,7 @@ class BuildStyleProbeTests(unittest.TestCase):
         slang_stem = chr(0xBC15)
         slang_endings = ('다', '아', '고', '았', '었', '으면', '면서', '는', '은', '을', '기', '려고')
         slang_pattern = re.compile(re.escape(slang_stem) + '(?:' + '|'.join(slang_endings) + ')')
-        broken_bold_pattern = re.compile(r'''(?<=\S)[)\]"'`]\*\*[가-힣]''')
+        broken_bold_pattern = re.compile(r'''(?<=\S)[)\]"'`」』%]\*\*[가-힣]''')
         violations = []
 
         for path in paths:
