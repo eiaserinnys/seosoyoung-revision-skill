@@ -123,6 +123,54 @@ class BuildStyleProbeTests(unittest.TestCase):
             self.assertEqual(metadata['draft_sentence_count'], len(draft.read_text(encoding='utf-8').splitlines()))
             self.assertEqual(metadata['target_rewrite_count'], 1)
 
+    def test_code_blocks_are_excluded_from_draft_sentences_and_metadata(self):
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            draft_source = Path(temporary_dir) / 'draft.md'
+            corpus_dir = Path(temporary_dir) / 'corpus'
+            output_dir = Path(temporary_dir) / 'output'
+            markdown = (
+                '코드 구간 밖에 있는 첫 번째 초안 문장은 결과에 포함되어야 한다.\n'
+                '```bash\n'
+                '펜스 코드 블록 안의 문장은 초안 문장 수에 포함되면 안 된다.\n'
+                '```\n'
+                '~~~text\n'
+                '물결표 코드 블록 안의 문장은 초안 문장 수에 포함되면 안 된다.\n'
+                '~~~\n'
+                '<pre>\n'
+                'HTML pre 블록 안의 문장은 초안 문장 수에 포함되면 안 된다.\n'
+                '</pre>\n'
+                '<code>\n'
+                'HTML code 블록 안의 문장은 초안 문장 수에 포함되면 안 된다.\n'
+                '</code>\n'
+                '코드 구간 밖에 있는 두 번째 초안 문장도 결과에 포함되어야 한다.\n'
+            )
+            draft_source.write_text(
+                markdown,
+                encoding='utf-8',
+            )
+            corpus_dir.mkdir()
+            (corpus_dir / 'sample.md').write_text(markdown, encoding='utf-8')
+            corpus_sentences = self.probe.collect_reference(
+                str(corpus_dir), [], 45, 11, 'plain',
+            )
+            self.assertEqual(len(corpus_sentences), 2)
+            result = self.run_probe(
+                '--draft', draft_source,
+                '--out-dir', output_dir,
+                '--allow-empty-corpus',
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            draft_path = output_dir / 'draft_sents.txt'
+            sentences = draft_path.read_text(encoding='utf-8').splitlines()
+            metadata = json.loads((output_dir / 'probe_meta.json').read_text(encoding='utf-8'))
+            self.assertEqual(len(sentences), 2)
+            self.assertIn('첫 번째 초안 문장', '\n'.join(sentences))
+            self.assertIn('두 번째 초안 문장', '\n'.join(sentences))
+            self.assertNotIn('코드 블록 안의 문장', '\n'.join(sentences))
+            self.assertNotIn('HTML pre 블록', '\n'.join(sentences))
+            self.assertNotIn('HTML code 블록', '\n'.join(sentences))
+            self.assertEqual(metadata['draft_sentence_count'], 2)
+
     def test_missing_and_empty_drafts_exit_without_waiting(self):
         with tempfile.TemporaryDirectory() as temporary_dir:
             missing = Path(temporary_dir) / 'missing.md'

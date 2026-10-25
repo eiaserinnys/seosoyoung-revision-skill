@@ -35,6 +35,11 @@ HTML_BLOCK_END = re.compile(
     re.IGNORECASE,
 )
 HTML_TAG = re.compile(r'<[^>]+>')
+FENCE_LINE = re.compile(r'^ {0,3}(`{3,}|~{3,})(.*)$')
+HTML_CODE_BLOCKS = re.compile(
+    r'<pre\b[^>]*>[\s\S]*?</pre\s*>|<code\b[^>]*>[\s\S]*?</code\s*>',
+    re.IGNORECASE,
+)
 MULTI_SPACE = re.compile(r'[ \t]+')
 SUPPORTED_EXTENSIONS = ('.md', '.txt', '.html', '.htm')
 SKIP_DIRECTORIES = {'.git', '.venv', 'node_modules', '__pycache__'}
@@ -119,6 +124,31 @@ def html_to_lines(raw_html):
     return '\n'.join(lines)
 
 
+def strip_non_prose_blocks(text):
+    """펜스 코드와 HTML 코드 블록을 문장 추출 전에 제거한다."""
+    lines = []
+    fence_character = None
+    fence_length = 0
+    for line in text.splitlines(keepends=True):
+        match = FENCE_LINE.match(line.rstrip('\r\n'))
+        if fence_character:
+            if (
+                match
+                and match.group(1)[0] == fence_character
+                and len(match.group(1)) >= fence_length
+                and not match.group(2).strip()
+            ):
+                fence_character = None
+                fence_length = 0
+            continue
+        if match:
+            fence_character = match.group(1)[0]
+            fence_length = len(match.group(1))
+            continue
+        lines.append(line)
+    return HTML_CODE_BLOCKS.sub('\n', ''.join(lines))
+
+
 def register_of(sent):
     """문장의 문체를 plain 또는 polite로 구분한다."""
     if sent.endswith(POLITE_EXCEPT):
@@ -143,9 +173,9 @@ def iter_sentences(path, min_len, max_len, prose_only=True):
         raw = source.read()
     ext = os.path.splitext(path)[1].lower()
     if ext in ('.html', '.htm'):
-        text = html_to_lines(raw)
+        text = html_to_lines(strip_non_prose_blocks(raw))
     else:
-        text = strip_frontmatter(raw)
+        text = strip_non_prose_blocks(strip_frontmatter(raw))
     for line in text.split('\n'):
         line = line.strip()
         if not line or line.startswith(SKIP_PREFIX):
