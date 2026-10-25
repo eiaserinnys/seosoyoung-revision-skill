@@ -81,7 +81,8 @@ class BuildStyleProbeTests(unittest.TestCase):
                 set(metadata),
                 {
                     'register', 'register_label', 'corpus_mode', 'allow_empty_corpus',
-                    'ref_sentence_count', 'draft_sentence_count', 'top_pct',
+                    'ref_sentence_count', 'user_ref_sentence_count',
+                    'builtin_ref_sentence_count', 'draft_sentence_count', 'top_pct',
                     'target_rewrite_count',
                 },
             )
@@ -90,6 +91,8 @@ class BuildStyleProbeTests(unittest.TestCase):
             self.assertEqual(metadata['corpus_mode'], 'corpus')
             self.assertIs(metadata['allow_empty_corpus'], False)
             self.assertIs(type(metadata['ref_sentence_count']), int)
+            self.assertEqual(metadata['user_ref_sentence_count'], 30)
+            self.assertEqual(metadata['builtin_ref_sentence_count'], 0)
             self.assertIs(type(metadata['draft_sentence_count']), int)
             self.assertEqual(metadata['ref_sentence_count'], len(reference.read_text(encoding='utf-8').splitlines()))
             self.assertEqual(metadata['draft_sentence_count'], len(draft.read_text(encoding='utf-8').splitlines()))
@@ -114,7 +117,18 @@ class BuildStyleProbeTests(unittest.TestCase):
             self.assertTrue(draft.is_file())
             self.assertEqual(metadata['corpus_mode'], 'empty')
             self.assertIs(metadata['allow_empty_corpus'], True)
+            self.assertEqual(
+                set(metadata),
+                {
+                    'register', 'register_label', 'corpus_mode', 'allow_empty_corpus',
+                    'ref_sentence_count', 'user_ref_sentence_count',
+                    'builtin_ref_sentence_count', 'draft_sentence_count', 'top_pct',
+                    'target_rewrite_count',
+                },
+            )
             self.assertEqual(metadata['ref_sentence_count'], 25)
+            self.assertEqual(metadata['user_ref_sentence_count'], 0)
+            self.assertEqual(metadata['builtin_ref_sentence_count'], 25)
             self.assertIs(type(metadata['ref_sentence_count']), int)
             self.assertIs(type(metadata['draft_sentence_count']), int)
             self.assertIs(type(metadata['top_pct']), float)
@@ -122,6 +136,71 @@ class BuildStyleProbeTests(unittest.TestCase):
             self.assertEqual(metadata['ref_sentence_count'], len(reference.read_text(encoding='utf-8').splitlines()))
             self.assertEqual(metadata['draft_sentence_count'], len(draft.read_text(encoding='utf-8').splitlines()))
             self.assertEqual(metadata['target_rewrite_count'], 1)
+
+    def test_draft_extracts_short_complete_bold_and_link_sentences(self):
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            draft_source = Path(temporary_dir) / 'draft.md'
+            output_dir = Path(temporary_dir) / 'output'
+            draft_source.write_text(
+                '위험은 셋이다.\n'
+                '**이 주장은 앞서 확인한 자료와 맞지 않는다.**\n'
+                '[보고서](https://example.com)는 다른 결론을 제시한다.\n'
+                '일반적인 길이의 평문도 빠짐없이 추출되어야 한다.\n',
+                encoding='utf-8',
+            )
+            result = self.run_probe(
+                '--corpus-dir', temporary_dir,
+                '--draft', draft_source,
+                '--out-dir', output_dir,
+                '--allow-empty-corpus',
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            draft_path = output_dir / 'draft_sents.txt'
+            sentences = [
+                re.sub(r'^\s*\d+\.\s*', '', line)
+                for line in draft_path.read_text(encoding='utf-8').splitlines()
+            ]
+            metadata = json.loads((output_dir / 'probe_meta.json').read_text(encoding='utf-8'))
+            self.assertEqual(
+                sentences,
+                [
+                    '위험은 셋이다.',
+                    '이 주장은 앞서 확인한 자료와 맞지 않는다.',
+                    '보고서는 다른 결론을 제시한다.',
+                    '일반적인 길이의 평문도 빠짐없이 추출되어야 한다.',
+                ],
+            )
+            self.assertEqual(metadata['draft_sentence_count'], 4)
+            self.assertEqual(
+                self.probe.strip_inline_markdown('*중요한 판단*이다.'),
+                '중요한 판단이다.',
+            )
+            self.assertEqual(
+                self.probe.collect_reference(temporary_dir, [], 45, 11, 'plain'),
+                ['일반적인 길이의 평문도 빠짐없이 추출되어야 한다.'],
+            )
+
+    def test_partial_user_corpus_with_fallback_sets_mixed_mode_and_counts(self):
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            corpus_dir = Path(temporary_dir) / 'corpus'
+            output_dir = Path(temporary_dir) / 'output'
+            corpus_dir.mkdir()
+            (corpus_dir / 'sample.md').write_text(
+                '사용자가 직접 작성한 기준 문장은 코퍼스 표본에 먼저 담긴다.\n',
+                encoding='utf-8',
+            )
+            result = self.run_probe(
+                '--corpus-dir', corpus_dir,
+                '--draft', EXAMPLE_DRAFT,
+                '--out-dir', output_dir,
+                '--allow-empty-corpus',
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            metadata = json.loads((output_dir / 'probe_meta.json').read_text(encoding='utf-8'))
+            self.assertEqual(metadata['corpus_mode'], 'mixed')
+            self.assertEqual(metadata['user_ref_sentence_count'], 1)
+            self.assertEqual(metadata['builtin_ref_sentence_count'], 19)
+            self.assertEqual(metadata['ref_sentence_count'], 20)
 
     def test_code_blocks_are_excluded_from_draft_sentences_and_metadata(self):
         with tempfile.TemporaryDirectory() as temporary_dir:

@@ -185,6 +185,7 @@ python3 scripts/build_style_probe.py \
 ```
 
 - `--allow-empty-corpus`를 지정하면 내장 기준선 문장 표본이 담긴 `ref_corpus.txt`와 함께 초안 문장 번호 목록(`draft_sents.txt`) 및 목표 재작성 문장 수(`probe_meta.json`)를 정상 생성한다.
+- `probe_meta.json`에는 사용자 문장 수, 내장 보충 문장 수, `corpus_mode` 값(`corpus`, `mixed`, `empty`)이 기록된다. `mixed`일 때 내장 문장은 작성자 고유 문체로 해석하지 않는다.
 
 ### (2) 별도 클린 서브에이전트에 2σ 확률 판정 위임
 

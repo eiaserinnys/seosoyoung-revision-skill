@@ -69,6 +69,7 @@
 - 작성자 기준 코퍼스 표본: `<프로브_출력_폴더>/ref_corpus.txt` (이 작성자가 과거에 발표한 같은 문체의 문장 표본)
 - 채점 대상 초안 문장 목록: `<프로브_출력_폴더>/draft_sents.txt` (번호가 매겨진 이번 원고의 문장 목록)
 - 프로브 메타데이터: `<프로브_출력_폴더>/probe_meta.json`
+- 메타데이터에는 `user_ref_sentence_count`, `builtin_ref_sentence_count`, `corpus_mode` 값(`corpus`, `mixed`, `empty`)이 기록된다. `mixed`일 때 내장 보충 문장은 작성자의 고유 문체로 해석하지 않는다.
 - **주의 (읽기 전용)**: 어떤 파일도 수정하거나 새로 생성하지 마십시오.
 
 ### 2. 채점 절차와 질문
