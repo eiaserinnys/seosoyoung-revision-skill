@@ -117,6 +117,15 @@ class BuildStyleProbeTests(unittest.TestCase):
             self.assertTrue(draft.is_file())
             self.assertEqual(metadata['corpus_mode'], 'empty')
             self.assertIs(metadata['allow_empty_corpus'], True)
+            self.assertEqual(
+                set(metadata),
+                {
+                    'register', 'register_label', 'corpus_mode', 'allow_empty_corpus',
+                    'ref_sentence_count', 'user_ref_sentence_count',
+                    'builtin_ref_sentence_count', 'draft_sentence_count', 'top_pct',
+                    'target_rewrite_count',
+                },
+            )
             self.assertEqual(metadata['ref_sentence_count'], 25)
             self.assertEqual(metadata['user_ref_sentence_count'], 0)
             self.assertEqual(metadata['builtin_ref_sentence_count'], 25)
@@ -162,6 +171,10 @@ class BuildStyleProbeTests(unittest.TestCase):
                 ],
             )
             self.assertEqual(metadata['draft_sentence_count'], 4)
+            self.assertEqual(
+                self.probe.strip_inline_markdown('*중요한 판단*이다.'),
+                '중요한 판단이다.',
+            )
             self.assertEqual(
                 self.probe.collect_reference(temporary_dir, [], 45, 11, 'plain'),
                 ['일반적인 길이의 평문도 빠짐없이 추출되어야 한다.'],

@@ -160,7 +160,8 @@ def strip_inline_markdown(text):
     text = re.sub(r'\[\^[^\]]+\]', '', text)
     text = re.sub(r'`([^`]+)`', r'\1', text)
     text = re.sub(r'(\*\*|__|~~)(.*?)\1', r'\2', text)
-    return re.sub(r'(?<!\w)([*_])([^*_]+)\1(?!\w)', r'\2', text)
+    text = re.sub(r'(?<!\w)\*([^*]+)\*', r'\1', text)
+    return re.sub(r'(?<!\w)_([^_]+)_(?!\w)', r'\1', text)
 
 
 def register_of(sent):
